@@ -208,6 +208,7 @@ class MainWindow(QMainWindow):
         self.editor.setMarginsBackgroundColor(self.themes["Light"].window_bg)
         self.editor.setMarginsForegroundColor(self.themes["Light"].window_fg)
         self.update_theme_checkmarks("Light")
+        self.editor.setCaretForegroundColor(QColor("#000000"))
         self.mark_unsaved()
 
     def update_theme_checkmarks(self, selected_theme):
