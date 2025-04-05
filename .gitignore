@@ -1,0 +1,5 @@
+# Ignore any __pycache__ directories
+**/__pycache__/
+
+# Ignore directories with "main" in their names
+**/*main*/

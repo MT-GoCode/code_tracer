@@ -1,0 +1,1 @@
+nuitka --onefile --standalone --windows-disable-console --output-filename=CodeTraceEditor.exe main.py
