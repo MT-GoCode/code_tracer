@@ -3,3 +3,7 @@
 
 # Ignore directories with "main" in their names
 **/*main*/
+
+*.spec
+
+*.exe
