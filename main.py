@@ -7,14 +7,14 @@ from PyQt5.QtWidgets import (
     QMenu, QAction, QShortcut, QMessageBox, QFileDialog
 )
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QKeySequence
+from PyQt5.QtGui import QKeySequence, QColor
 
 from semantic_editor import SemanticEditor
 from core_lexer import LineType
 from python_lexer import PythonLexer
 from cpp_lexer import CppLexer
 from java_lexer import JavaLexer
-
+from themes import LightTheme, DarkTheme
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -24,6 +24,11 @@ class MainWindow(QMainWindow):
         self.unsaved_changes = False
         self.current_filename = "untitled.trace"
         self.current_language_name = "Python"
+        self.current_theme = "Dark"
+        self.themes = {
+            "Light": LightTheme(),
+            "Dark": DarkTheme()
+        }
 
         # Create editor
         self.editor = SemanticEditor()
@@ -38,6 +43,7 @@ class MainWindow(QMainWindow):
 
         self.language_actions = {}
         self.tabsize_actions = {}
+        self.theme_actions = {}
 
         # Layout
         central_widget = QWidget()
@@ -111,6 +117,8 @@ class MainWindow(QMainWindow):
 
         # OPTIONS menu
         options_menu = menubar.addMenu("Options")
+        
+        # Tab size submenu
         tabsize_menu = QMenu("Tab Size", self)
         options_menu.addMenu(tabsize_menu)
 
@@ -120,6 +128,21 @@ class MainWindow(QMainWindow):
             act.triggered.connect(lambda _, s=size: self.set_tab_size(s))
             tabsize_menu.addAction(act)
             self.tabsize_actions[size] = act
+
+        # Theme submenu
+        theme_menu = QMenu("Theme", self)
+        options_menu.addMenu(theme_menu)
+
+        def make_theme_action(name, fn):
+            action = QAction(name, self)
+            action.setCheckable(True)
+            action.triggered.connect(fn)
+            theme_menu.addAction(action)
+            self.theme_actions[name] = action
+            return action
+
+        make_theme_action("Dark", self.use_dark_theme)
+        make_theme_action("Light", self.use_light_theme)
 
         options_menu.addAction(self.editor.copy_action)
 
@@ -134,10 +157,10 @@ class MainWindow(QMainWindow):
     def init_default_states(self):
         self.set_tab_size(4)
         self.update_language_checkmarks("Python")
+        self.use_dark_theme()  # Default to dark
         self.update_title()
 
     def setup_keyboard_shortcuts(self):
-        # Additional shortcuts for line-type toggles exist in QActions above
         QShortcut(QKeySequence(Qt.AltModifier + Qt.Key_1), self).activated.connect(
             lambda: self.set_line_type(LineType.CODE))
         QShortcut(QKeySequence(Qt.AltModifier + Qt.Key_2), self).activated.connect(
@@ -145,7 +168,6 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence(Qt.AltModifier + Qt.Key_3), self).activated.connect(
             lambda: self.set_line_type(LineType.FILE_ANNOTATION))
 
-    # -- Marking unsaved/saved changes
     def mark_unsaved(self):
         self.unsaved_changes = True
         self.update_title()
@@ -161,9 +183,41 @@ class MainWindow(QMainWindow):
             title += "*"
         self.setWindowTitle(title)
 
-    # -- Language changes
+    # Theme methods
+    def use_dark_theme(self):
+        
+        self.current_theme = "Dark"
+        self.themes["Dark"].apply(self.python_lexer)
+        self.themes["Dark"].apply(self.cpp_lexer)
+        self.themes["Dark"].apply(self.java_lexer)
+        self.themes["Dark"].apply_to_window(self)
+        self.editor.setLexer(self.editor.lexer())  # Force restyle
+        self.editor.setMarginsBackgroundColor(self.themes["Dark"].window_bg)
+        self.editor.setMarginsForegroundColor(self.themes["Dark"].window_fg)
+        self.editor.setCaretForegroundColor(QColor("#FFFFFF"))
+        self.update_theme_checkmarks("Dark")
+        self.mark_unsaved()
+
+    def use_light_theme(self):
+        self.current_theme = "Light"
+        self.themes["Light"].apply(self.python_lexer)
+        self.themes["Light"].apply(self.cpp_lexer)
+        self.themes["Light"].apply(self.java_lexer)
+        self.themes["Light"].apply_to_window(self)
+        self.editor.setLexer(self.editor.lexer())  # Force restyle
+        self.editor.setMarginsBackgroundColor(self.themes["Light"].window_bg)
+        self.editor.setMarginsForegroundColor(self.themes["Light"].window_fg)
+        self.update_theme_checkmarks("Light")
+        self.mark_unsaved()
+
+    def update_theme_checkmarks(self, selected_theme):
+        for name, action in self.theme_actions.items():
+            action.setChecked(name == selected_theme)
+
+    # Language methods
     def use_python_lexer(self):
         self.editor.setLexer(self.python_lexer)
+        self.themes[self.current_theme].apply(self.python_lexer)
         self.editor.update_row_data()
         self.editor.apply_folding()
         self.update_language_checkmarks("Python")
@@ -172,6 +226,7 @@ class MainWindow(QMainWindow):
 
     def use_cpp_lexer(self):
         self.editor.setLexer(self.cpp_lexer)
+        self.themes[self.current_theme].apply(self.cpp_lexer)
         self.editor.update_row_data()
         self.editor.apply_folding()
         self.update_language_checkmarks("C++")
@@ -180,6 +235,7 @@ class MainWindow(QMainWindow):
 
     def use_java_lexer(self):
         self.editor.setLexer(self.java_lexer)
+        self.themes[self.current_theme].apply(self.java_lexer)
         self.editor.update_row_data()
         self.editor.apply_folding()
         self.update_language_checkmarks("Java")
@@ -190,12 +246,10 @@ class MainWindow(QMainWindow):
         for name, action in self.language_actions.items():
             action.setChecked(name == selected_lang)
 
-    # -- Line type
     def set_line_type(self, line_type):
         self.editor.set_current_line_type(line_type)
         self.mark_unsaved()
 
-    # -- Tab size
     def set_tab_size(self, size):
         self.editor.set_tab_size(size)
         self.update_tabsize_checkmarks(size)
@@ -205,7 +259,6 @@ class MainWindow(QMainWindow):
         for size, action in self.tabsize_actions.items():
             action.setChecked(size == selected_size)
 
-    # -- File Operations
     def new_file(self):
         if not self.check_save_if_needed():
             return
@@ -215,6 +268,7 @@ class MainWindow(QMainWindow):
         self.current_filename = "untitled.trace"
         self.current_language_name = "Python"
         self.editor.setLexer(self.python_lexer)
+        self.themes[self.current_theme].apply(self.python_lexer)
         self.update_language_checkmarks("Python")
         self.set_tab_size(4)
         self.mark_saved()
@@ -237,13 +291,8 @@ class MainWindow(QMainWindow):
             self.do_save(self.current_filename)
 
     def save_file_as(self):
-        """
-        Shows a save dialog. Pre-fills the name of the current file,
-        then appends '.trace' if needed.
-        """
         dialog = QFileDialog(self, "Save File As", ".", "Trace Files (*.trace);;All Files (*)")
         dialog.setAcceptMode(QFileDialog.AcceptSave)
-        # Pre-fill with the current base file name
         dialog.selectFile(os.path.basename(self.current_filename))
 
         if dialog.exec_() != QFileDialog.Accepted:
@@ -257,8 +306,8 @@ class MainWindow(QMainWindow):
         data = {}
         data["tab_size"] = self.editor.spaces_per_tab
         data["language"] = self.current_language_name
+        data["theme"] = self.current_theme
 
-        # row_data
         row_data_list = []
         for rd in self.editor.row_data:
             row_data_list.append({
@@ -283,13 +332,13 @@ class MainWindow(QMainWindow):
         row_data_list = data.get("row_data", [])
         tab_size = data.get("tab_size", 4)
         language = data.get("language", "Python")
+        theme = data.get("theme", "Dark")
 
         self.editor.clear()
         self.editor.row_data.clear()
         self.editor.setText(text)
         self.editor.update()
 
-        # Re-init row_data
         self.editor.init_row_data()
         line_count = self.editor.lines()
         for i, rd_dict in enumerate(row_data_list):
@@ -307,10 +356,14 @@ class MainWindow(QMainWindow):
         else:
             self.use_python_lexer()
 
+        if theme == "Dark":
+            self.use_dark_theme()
+        else:
+            self.use_light_theme()
+
         self.current_filename = filename
         self.mark_saved()
 
-    # -- Handling unsaved changes
     def check_save_if_needed(self):
         if not self.unsaved_changes:
             return True
@@ -335,14 +388,12 @@ class MainWindow(QMainWindow):
         else:
             event.accept()
 
-
 def main():
     app = QApplication(sys.argv)
     window = MainWindow()
     window.resize(800, 600)
     window.show()
     sys.exit(app.exec_())
-
 
 if __name__ == "__main__":
     main()
