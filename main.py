@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
     QMenu, QAction, QShortcut, QMessageBox, QFileDialog
 )
+from PyQt5.Qsci import QsciScintilla
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QKeySequence, QColor
 
@@ -144,6 +145,13 @@ class MainWindow(QMainWindow):
         make_theme_action("Dark", self.use_dark_theme)
         make_theme_action("Light", self.use_light_theme)
 
+        # Word Wrap toggle
+        self.word_wrap_action = QAction("Word Wrap", self)
+        self.word_wrap_action.setCheckable(True)
+        self.word_wrap_action.setChecked(False)
+        self.word_wrap_action.triggered.connect(self.toggle_word_wrap)
+        options_menu.addAction(self.word_wrap_action)
+
         options_menu.addAction(self.editor.copy_action)
 
         # Keyboard shortcuts for line types
@@ -185,16 +193,15 @@ class MainWindow(QMainWindow):
 
     # Theme methods
     def use_dark_theme(self):
-        
         self.current_theme = "Dark"
         self.themes["Dark"].apply(self.python_lexer)
         self.themes["Dark"].apply(self.cpp_lexer)
         self.themes["Dark"].apply(self.java_lexer)
         self.themes["Dark"].apply_to_window(self)
         self.editor.setLexer(self.editor.lexer())  # Force restyle
+        self.editor.setCaretForegroundColor(QColor("#FFFFFF"))  # Set cursor color
         self.editor.setMarginsBackgroundColor(self.themes["Dark"].window_bg)
         self.editor.setMarginsForegroundColor(self.themes["Dark"].window_fg)
-        self.editor.setCaretForegroundColor(QColor("#FFFFFF"))
         self.update_theme_checkmarks("Dark")
         self.mark_unsaved()
 
@@ -205,15 +212,23 @@ class MainWindow(QMainWindow):
         self.themes["Light"].apply(self.java_lexer)
         self.themes["Light"].apply_to_window(self)
         self.editor.setLexer(self.editor.lexer())  # Force restyle
+        self.editor.setCaretForegroundColor(QColor("#000000"))  # Set cursor color
         self.editor.setMarginsBackgroundColor(self.themes["Light"].window_bg)
         self.editor.setMarginsForegroundColor(self.themes["Light"].window_fg)
         self.update_theme_checkmarks("Light")
-        self.editor.setCaretForegroundColor(QColor("#000000"))
         self.mark_unsaved()
 
     def update_theme_checkmarks(self, selected_theme):
         for name, action in self.theme_actions.items():
             action.setChecked(name == selected_theme)
+
+    # Word Wrap method
+    def toggle_word_wrap(self):
+        if self.word_wrap_action.isChecked():
+            self.editor.setWrapMode(QsciScintilla.WrapWord)
+        else:
+            self.editor.setWrapMode(QsciScintilla.WrapNone)
+        self.mark_unsaved()
 
     # Language methods
     def use_python_lexer(self):
@@ -272,6 +287,8 @@ class MainWindow(QMainWindow):
         self.themes[self.current_theme].apply(self.python_lexer)
         self.update_language_checkmarks("Python")
         self.set_tab_size(4)
+        self.word_wrap_action.setChecked(False)
+        self.toggle_word_wrap()
         self.mark_saved()
 
     def open_file(self):
@@ -308,6 +325,7 @@ class MainWindow(QMainWindow):
         data["tab_size"] = self.editor.spaces_per_tab
         data["language"] = self.current_language_name
         data["theme"] = self.current_theme
+        data["word_wrap"] = self.word_wrap_action.isChecked()
 
         row_data_list = []
         for rd in self.editor.row_data:
@@ -334,6 +352,7 @@ class MainWindow(QMainWindow):
         tab_size = data.get("tab_size", 4)
         language = data.get("language", "Python")
         theme = data.get("theme", "Dark")
+        word_wrap = data.get("word_wrap", False)
 
         self.editor.clear()
         self.editor.row_data.clear()
@@ -361,6 +380,9 @@ class MainWindow(QMainWindow):
             self.use_dark_theme()
         else:
             self.use_light_theme()
+
+        self.word_wrap_action.setChecked(word_wrap)
+        self.toggle_word_wrap()
 
         self.current_filename = filename
         self.mark_saved()
